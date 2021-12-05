@@ -1,0 +1,77 @@
+version: '3.5'
+services:
+  pgadmin45: #https://github.com/postgres/pgadmin4/blob/master/pkg/docker/Dockerfile
+    image: dpage/pgadmin4
+    hostname: "pgadmin4"
+    environment:
+     - PGADMIN_DEFAULT_EMAIL=admin@npfx.ru # https://hub.docker.com/r/dpage/pgadmin4/
+     - PGADMIN_DEFAULT_PASSWORD=nCKt7Ytw
+    ports:
+      - "80:80"
+    volumes:
+       - ./code:/code
+    tty: true
+    privileged: true
+
+    networks:
+      mynetwork:
+        aliases:
+          - pgadmin4
+          
+          
+  postgres:
+        image: postgres
+        hostname: "pdbserv"
+        environment:
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: postgres
+            PGDATA: /data/postgres
+            POSTGRES_DB: airflow
+        volumes:
+        - ./postgres:/data/postgres
+        ports:
+        - "65432:5432"
+        restart: unless-stopped
+        networks:
+          mynetwork:
+            aliases:
+              - pdbserv
+              - pdbserv.localdomain.com
+
+              
+
+      
+  webserver_airflow:
+    image: apache/airflow:2.2.2
+    restart: always
+    depends_on:
+       - postgres
+    environment:
+        EXECUTOR: Local
+        LOAD_EX: n
+        _AIRFLOW_DB_UPGRADE: 'true'
+        _AIRFLOW_WWW_USER_CREATE: 'true'
+        _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
+        _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
+
+       
+    logging:
+       options:
+          max-size: 10m
+          max-file: "3"
+    volumes:
+       - ./airflow/airflow_own:/opt/airflow
+    ports:
+       - "8080:8080"
+    command:  webserver
+    healthcheck:
+       test: ["CMD-SHELL", "[ -f /usr/local/airflow/airflow-webserver.pid ]"]
+       interval: 30s
+       timeout: 30s
+       retries: 3
+    networks:
+       - mynetwork
+        
+networks:
+    mynetwork:
+      driver: bridge
